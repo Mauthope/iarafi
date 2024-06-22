@@ -1,86 +1,109 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Real-time Object Detection</title>
-  <style>
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      font-family: Arial, sans-serif;
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Object Detection</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
 
-    video,
-    canvas {
-      border: 1px solid black;
-    }
-  </style>
+        video, canvas {
+            border: 1px solid black;
+        }
+    </style>
 </head>
-
 <body>
-  <h1>Real-time Object Detection</h1>
-  <video id="video" width="640" height="480" autoplay></video>
-  <canvas id="canvas" width="640" height="480"></canvas>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-  <script>
-    // Referências para os elementos do vídeo e canvas
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    <h1>Real-time Object Detection</h1>
+    <video id="video" width="640" height="480" autoplay></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+    <button id="download">Download Log</button>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const downloadButton = document.getElementById('download');
+        let personLog = [];
 
-    // Função para iniciar a câmera
-    async function startVideo() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-      } catch (err) {
-        console.error("Erro ao acessar a câmera: ", err);
-      }
-    }
+        async function startVideo() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: { exact: "environment" } } // Use câmera principal
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("Erro ao acessar a câmera: ", err);
+            }
+        }
 
-    // Carregar o modelo COCO-SSD
-    async function loadModel() {
-      return await cocoSsd.load();
-    }
+        async function loadModel() {
+            return await cocoSsd.load();
+        }
 
-    // Função para detectar objetos em tempo real
-    async function detectObjects(model) {
-      const predictions = await model.detect(video);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        function logDetection(timestamp, count) {
+            const logEntry = { timestamp, count };
+            personLog.push(logEntry);
+            localStorage.setItem('personLog', JSON.stringify(personLog));
+        }
 
-      predictions.forEach(prediction => {
-        ctx.beginPath();
-        ctx.rect(...prediction.bbox);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = 'green';
-        ctx.fillStyle = 'green';
-        ctx.stroke();
-        ctx.fillText(
-          `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
-          prediction.bbox[0],
-          prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
-        );
-      });
+        function downloadLog() {
+            const log = localStorage.getItem('personLog');
+            const blob = new Blob([log], { type: 'text/plain' });
+            const anchor = document.createElement('a');
+            anchor.href = URL.createObjectURL(blob);
+            anchor.download = 'person_log.txt';
+            anchor.click();
+        }
 
-      // Solicitar a próxima detecção
-      requestAnimationFrame(() => detectObjects(model));
-    }
+        async function detectObjects(model) {
+            const predictions = await model.detect(video);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Inicializar a aplicação
-    (async function () {
-      await startVideo();
-      const model = await loadModel();
-      detectObjects(model);
-    })();
-  </script>
+            let personCount = 0;
+
+            predictions.forEach(prediction => {
+                if (prediction.class === 'person') {
+                    personCount++;
+                }
+
+                ctx.beginPath();
+                ctx.rect(...prediction.bbox);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = 'green';
+                ctx.fillStyle = 'green';
+                ctx.stroke();
+                ctx.fillText(
+                    `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
+                    prediction.bbox[0],
+                    prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
+                );
+            });
+
+            if (personCount > 0) {
+                const timestamp = new Date().toISOString();
+                logDetection(timestamp, personCount);
+            }
+
+            requestAnimationFrame(() => detectObjects(model));
+        }
+
+        (async function() {
+            await startVideo();
+            const model = await loadModel();
+            detectObjects(model);
+        })();
+
+        downloadButton.addEventListener('click', downloadLog);
+    </script>
 </body>
-
 </html>
