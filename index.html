@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Real-time Object Detection</title>
+  <title>Detecção em tempo real</title>
   <style>
     body {
       display: flex;
@@ -43,7 +43,7 @@
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const downloadButton = document.getElementById('download');
-    let personLog = [];
+    let detectionLog = [];
     let video = document.createElement('video');
 
     async function startVideo() {
@@ -71,18 +71,22 @@
       return await cocoSsd.load();
     }
 
-    function logDetection(timestamp, count) {
-      const logEntry = { timestamp, count };
-      personLog.push(logEntry);
-      localStorage.setItem('personLog', JSON.stringify(personLog));
+    function logDetection(timestamp, objectName, count) {
+      const logEntry = { timestamp, objectName, count };
+      detectionLog.push(logEntry);
+      localStorage.setItem('detectionLog', JSON.stringify(detectionLog));
     }
 
     function downloadLog() {
-      const log = localStorage.getItem('personLog');
-      const blob = new Blob([log], { type: 'text/plain' });
+      const log = localStorage.getItem('detectionLog');
+      const parsedLog = JSON.parse(log);
+      const formattedLog = parsedLog.map(entry => {
+        return `Date: ${entry.timestamp}, Object: ${entry.objectName}, Count: ${entry.count}`;
+      }).join('\n');
+      const blob = new Blob([formattedLog], { type: 'text/plain' });
       const anchor = document.createElement('a');
       anchor.href = URL.createObjectURL(blob);
-      anchor.download = 'person_log.txt';
+      anchor.download = 'detection_log.txt';
       anchor.click();
     }
 
@@ -92,6 +96,7 @@
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       let personCount = 0;
+      const timestamp = new Date().toISOString();
 
       predictions.forEach(prediction => {
         if (prediction.class === 'person') {
@@ -109,12 +114,9 @@
           prediction.bbox[0],
           prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
         );
-      });
 
-      if (personCount > 0) {
-        const timestamp = new Date().toISOString();
-        logDetection(timestamp, personCount);
-      }
+        logDetection(timestamp, prediction.class, personCount);
+      });
 
       requestAnimationFrame(() => detectObjects(model));
     }
