@@ -36,12 +36,16 @@
 
         async function startVideo() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: { exact: "environment" } } // Use câmera principal
-                });
+                const constraints = {
+                    video: {
+                        facingMode: { ideal: "environment" } // Use câmera traseira (principal) se disponível
+                    }
+                };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
             } catch (err) {
                 console.error("Erro ao acessar a câmera: ", err);
+                alert("Erro ao acessar a câmera: " + err.message);
             }
         }
 
