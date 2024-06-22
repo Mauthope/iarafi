@@ -1,113 +1,132 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time Object Detection</title>
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            font-family: Arial, sans-serif;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-time Object Detection</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
 
-        video, canvas {
-            border: 1px solid black;
-        }
-    </style>
+    video,
+    canvas {
+      border: 1px solid black;
+      max-width: 100%;
+      height: auto;
+    }
+
+    #video,
+    #canvas {
+      width: 100%;
+      max-width: 640px;
+    }
+
+    #download {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
 </head>
+
 <body>
-    <h1>Real-time Object Detection</h1>
-    <video id="video" width="640" height="480" autoplay></video>
-    <canvas id="canvas" width="640" height="480"></canvas>
-    <button id="download">Download Log</button>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
-    <script>
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const downloadButton = document.getElementById('download');
-        let personLog = [];
+  <h1>Real-time Object Detection</h1>
+  <video id="video" autoplay></video>
+  <canvas id="canvas"></canvas>
+  <button id="download">Download Log</button>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const downloadButton = document.getElementById('download');
+    let personLog = [];
 
-        async function startVideo() {
-            try {
-                const constraints = {
-                    video: {
-                        facingMode: { ideal: "environment" } // Use câmera traseira (principal) se disponível
-                    }
-                };
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-            } catch (err) {
-                console.error("Erro ao acessar a câmera: ", err);
-                alert("Erro ao acessar a câmera: " + err.message);
-            }
+    async function startVideo() {
+      try {
+        const constraints = {
+          video: {
+            facingMode: { ideal: "environment" } // Use câmera traseira (principal) se disponível
+          }
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+      } catch (err) {
+        console.error("Erro ao acessar a câmera: ", err);
+        alert("Erro ao acessar a câmera: " + err.message);
+      }
+    }
+
+    async function loadModel() {
+      return await cocoSsd.load();
+    }
+
+    function logDetection(timestamp, count) {
+      const logEntry = { timestamp, count };
+      personLog.push(logEntry);
+      localStorage.setItem('personLog', JSON.stringify(personLog));
+    }
+
+    function downloadLog() {
+      const log = localStorage.getItem('personLog');
+      const blob = new Blob([log], { type: 'text/plain' });
+      const anchor = document.createElement('a');
+      anchor.href = URL.createObjectURL(blob);
+      anchor.download = 'person_log.txt';
+      anchor.click();
+    }
+
+    async function detectObjects(model) {
+      const predictions = await model.detect(video);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      let personCount = 0;
+
+      predictions.forEach(prediction => {
+        if (prediction.class === 'person') {
+          personCount++;
         }
 
-        async function loadModel() {
-            return await cocoSsd.load();
-        }
+        ctx.beginPath();
+        ctx.rect(...prediction.bbox);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'green';
+        ctx.fillStyle = 'green';
+        ctx.stroke();
+        ctx.fillText(
+          `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
+          prediction.bbox[0],
+          prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
+        );
+      });
 
-        function logDetection(timestamp, count) {
-            const logEntry = { timestamp, count };
-            personLog.push(logEntry);
-            localStorage.setItem('personLog', JSON.stringify(personLog));
-        }
+      if (personCount > 0) {
+        const timestamp = new Date().toISOString();
+        logDetection(timestamp, personCount);
+      }
 
-        function downloadLog() {
-            const log = localStorage.getItem('personLog');
-            const blob = new Blob([log], { type: 'text/plain' });
-            const anchor = document.createElement('a');
-            anchor.href = URL.createObjectURL(blob);
-            anchor.download = 'person_log.txt';
-            anchor.click();
-        }
+      requestAnimationFrame(() => detectObjects(model));
+    }
 
-        async function detectObjects(model) {
-            const predictions = await model.detect(video);
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    (async function () {
+      await startVideo();
+      const model = await loadModel();
+      detectObjects(model);
+    })();
 
-            let personCount = 0;
-
-            predictions.forEach(prediction => {
-                if (prediction.class === 'person') {
-                    personCount++;
-                }
-
-                ctx.beginPath();
-                ctx.rect(...prediction.bbox);
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = 'green';
-                ctx.fillStyle = 'green';
-                ctx.stroke();
-                ctx.fillText(
-                    `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
-                    prediction.bbox[0],
-                    prediction.bbox[1] > 10 ? prediction.bbox[1] - 5 : 10
-                );
-            });
-
-            if (personCount > 0) {
-                const timestamp = new Date().toISOString();
-                logDetection(timestamp, personCount);
-            }
-
-            requestAnimationFrame(() => detectObjects(model));
-        }
-
-        (async function() {
-            await startVideo();
-            const model = await loadModel();
-            detectObjects(model);
-        })();
-
-        downloadButton.addEventListener('click', downloadLog);
-    </script>
+    downloadButton.addEventListener('click', downloadLog);
+  </script>
 </body>
+
 </html>
