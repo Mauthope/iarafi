@@ -16,17 +16,12 @@
       font-family: Arial, sans-serif;
     }
 
-    video,
-    canvas {
-      border: 1px solid black;
-      max-width: 100%;
-      height: auto;
-    }
-
-    #video,
     #canvas {
+      border: 1px solid black;
       width: 100%;
-      max-width: 640px;
+      height: auto;
+      max-width: 100%;
+      max-height: 100vh;
     }
 
     #download {
@@ -40,17 +35,16 @@
 
 <body>
   <h1>Real-time Object Detection</h1>
-  <video id="video" autoplay></video>
   <canvas id="canvas"></canvas>
   <button id="download">Download Log</button>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
   <script>
-    const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const downloadButton = document.getElementById('download');
     let personLog = [];
+    let video = document.createElement('video');
 
     async function startVideo() {
       try {
@@ -61,6 +55,12 @@
         };
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
+        video.play();
+
+        video.addEventListener('loadeddata', () => {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+        });
       } catch (err) {
         console.error("Erro ao acessar a câmera: ", err);
         alert("Erro ao acessar a câmera: " + err.message);
